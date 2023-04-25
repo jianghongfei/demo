@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>three.js webgl - glTF loader</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+    body {
+      font-family: Monospace;
+      background-color: #000;
+      color: #fff;
+      margin: 0px;
+      overflow: hidden;
+    }
+
+    #info {
+      color: #fff;
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      text-align: center;
+      z-index: 100;
+      display: block;
+    }
+
+    #info a {
+      color: #75ddc1;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">
+    <a href="http://threejs.org" target="_blank" rel="noopener">three.js</a> - GLTFLoader<br />
+    Battle Damaged Sci-fi Helmet by
+    <a href="https://sketchfab.com/theblueturtle_" target="_blank" rel="noopener">theblueturtle_</a><br />
+  </div>
+
+  <script src="./js/three.js"></script>
+
+  <script src="./js/controls/OrbitControls.js"></script>
+  <script src="./js/loaders/GLTFLoader.js"></script>
+
+  <script src="./js/WebGL.js"></script>
+  <script src="./js/libs/stats.min.js"></script>
+  <script src="./js/loaders/RGBELoader.js"></script>
+
+  <script src="./js/loaders/HDRCubeTextureLoader.js"></script>
+  <script src="./js/pmrem/PMREMGenerator.js"></script>
+  <script src="./js/pmrem/PMREMCubeUVPacker.js"></script>
+  <script>
+
+    if (WEBGL.isWebGLAvailable() === false) {
+
+      document.body.appendChild(WEBGL.getWebGLErrorMessage());
+
+    }
+
+    var container, stats, controls;
+    var camera, scene, renderer, light;
+    var blades = [];
+
+    init();
+    animate();
+
+    function init() {
+
+      container = document.createElement('div');
+      document.body.appendChild(container);
+
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f173f);
+
+      camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1440);
+      camera.position.set(16.05046593338937, 12.260466932969553, 20.78557753773611);
+      camera.lookAt(0, 0, 0);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.gammaOutput = true;
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera);
+      controls.target.set(0, 0, 0);
+      controls.update();
+
+      light = new THREE.HemisphereLight(0xbbbbff, 0x444422);
+      light.position.set(0, 1, 0);
+      scene.add(light);
+
+      // ground
+      // var mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(200, 200), new THREE.MeshPhongMaterial({ color: 0x999999, depthWrite: false }));
+      // mesh.rotation.x = - Math.PI / 2;
+      // mesh.receiveShadow = true;
+      // scene.add(mesh);
+
+      // var grid = new THREE.GridHelper(200, 20, 0x000000, 0x000000);
+      // grid.material.opacity = 0.2;
+      // grid.material.transparent = true;
+      // scene.add(grid);
+
+      // var hdrUrls = ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'];
+      // hdrCubeMap = new THREE.HDRCubeTextureLoader()
+      //   .setPath('./resources/')
+      //   .load(THREE.UnsignedByteType, hdrUrls, function () {
+
+      //     var pmremGenerator = new THREE.PMREMGenerator(hdrCubeMap);
+      //     pmremGenerator.update(renderer);
+
+      //     var pmremCubeUVPacker = new THREE.PMREMCubeUVPacker(pmremGenerator.cubeLods);
+      //     pmremCubeUVPacker.update(renderer);
+
+      //     hdrCubeRenderTarget = pmremCubeUVPacker.CubeUVRenderTarget;
+
+      //     pmremGenerator.dispose();
+      //     pmremCubeUVPacker.dispose();
+
+      // scene.background = hdrCubeMap;
+
+      // model
+      var loader = new THREE.GLTFLoader().setPath('./models/tunel/');
+      loader.load('scene.gltf', function (gltf) {
+
+        gltf.scene.traverse(function (child) {
+          if (child.material) {
+            var material = child.material.clone();
+
+            if (child.name === 'Wall') {
+              material.transparent = true;
+              material.side = THREE.DoubleSide;
+
+            } else if (child.name.startsWith('Fan')) {
+              material.side = THREE.DoubleSide;
+              let colors = [0x808080, 0xffff00, 0xffa500, 0xff0000];
+              material.color.setHex(colors[Math.floor(Math.random() * 4)]);
+              //material.opacity = 0.1;
+              material.transparent = true;
+            } else if (child.name.startsWith('Blade')) {
+              blades.push(child);
+            } else {
+              //child.material.envMap = hdrCubeRenderTarget.texture;
+            }
+
+            child.material = material;
+          }
+          if (child.isMesh) {
+
+            console.log(child.name);
+
+          }
+
+        });
+
+        scene.add(gltf.scene);
+
+      }, undefined, function (e) {
+
+        console.error(e);
+
+      });
+      // });
+
+
+
+
+      window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function init2(renderTarget) {
+
+    }
+
+    function onWindowResize() {
+
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+    }
+
+    //
+
+    function animate() {
+      for (const blade of blades) {
+        blade.rotation.set(0, 0, blade.rotation.z + 0.1);
+      }
+      requestAnimationFrame(animate);
+
+      if (renderer) {
+
+        renderer.render(scene, camera);
+      }
+
+    }
+
+  </script>
+
+</body>
+
+</html>

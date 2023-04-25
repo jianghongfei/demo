@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>three.js webgl - glTF loader</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+    body {
+      font-family: Monospace;
+      background-color: #000;
+      color: #fff;
+      margin: 0px;
+      overflow: hidden;
+    }
+
+    #info {
+      color: #fff;
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      text-align: center;
+      z-index: 100;
+      display: block;
+    }
+
+    #info a {
+      color: #75ddc1;
+      font-weight: bold;
+    }
+
+    .label {
+      border: 2px solid #afaca9;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      text-align: center;
+      line-height: 20px;
+      background: #302c28;
+      color: #fff;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">
+    <a href="javascript:go(0);">Point (1)</a> |
+    <a href="javascript:go(1);">Point (2)</a> |
+    <a href="javascript:go(2);">Point (3)</a>
+  </div>
+
+  <script src="./js/three.js"></script>
+
+  <script src="./js/controls/OrbitControls.js"></script>
+  <script src="./js/loaders/GLTFLoader.js"></script>
+
+  <script src="./js/WebGL.js"></script>
+  <script src="./js/libs/stats.min.js"></script>
+  <script src="./js/libs/tween.min.js"></script>
+  <script src="./js/loaders/RGBELoader.js"></script>
+
+  <script src="./js/loaders/HDRCubeTextureLoader.js"></script>
+  <script src="./js/pmrem/PMREMGenerator.js"></script>
+  <script src="./js/pmrem/PMREMCubeUVPacker.js"></script>
+  <script src="./js/renderers/CSS2DRenderer.js"></script>
+  <script>
+
+    if (WEBGL.isWebGLAvailable() === false) {
+
+      document.body.appendChild(WEBGL.getWebGLErrorMessage());
+
+    }
+
+    var stats, controls;
+    var camera, scene, renderer, light, hemisphere, point, raycaster, labelRenderer;
+
+    var sensors = [];
+    var components = [];
+
+    var labels = [
+      { id: 0, position: [-27.236307530538937, 8.394349029643704, -1.9495986150000046], camera: [-47.58445761208311, 11.405441224301986, 2.592058231925419] },
+      { id: 1, position: [6.542502926181543, 8.992687369429419, -0.9158354825160906], camera: [10.112294879061123, 35.94142997302481, 5.5057971753907395] },
+      { id: 2, position: [15.258654866345012, 8.308951801914073, -2.0231374164924016], camera: [33.5005883582524, 17.24984336013626, -3.9724177897570296] }
+    ]
+    init();
+    animate();
+
+    function init() {
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      renderer.gammaInput = true;
+      renderer.gammaOutput = true;
+
+      document.body.appendChild(renderer.domElement);
+      document.addEventListener("click", onDocumentMouseMove, false);
+
+      labelRenderer = new THREE.CSS2DRenderer();
+      labelRenderer.setSize(window.innerWidth, window.innerHeight);
+      labelRenderer.domElement.style.position = 'absolute';
+      labelRenderer.domElement.style.top = 0;
+      document.body.appendChild(labelRenderer.domElement);
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f173f);
+
+      raycaster = new THREE.Raycaster();
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 500);
+      camera.position.set(24.344958230036255, 20.53890294855785, 37.00192702919323);
+
+      controls = new THREE.OrbitControls(camera);
+      controls.target.set(0, - 0.2, - 0.2);
+      controls.update();
+
+      hemisphere = new THREE.HemisphereLight(0xbbbbff, 0x444422);
+      hemisphere.position.set(0, 1, 0);
+      scene.add(hemisphere);
+
+      var pointLight1 = new THREE.PointLight(0xffffff);
+      pointLight1.position.set(15, 40, 35);
+      pointLight1.castShadow = true;
+      scene.add(pointLight1);
+
+      var hdrUrls = ['px.hdr', 'nx.hdr', 'py.hdr', 'ny.hdr', 'pz.hdr', 'nz.hdr'];
+      hdrCubeMap = new THREE.HDRCubeTextureLoader()
+        .setPath('./resources/')
+        .load(THREE.UnsignedByteType, hdrUrls, function () {
+
+          var pmremGenerator = new THREE.PMREMGenerator(hdrCubeMap);
+          pmremGenerator.update(renderer);
+
+          var pmremCubeUVPacker = new THREE.PMREMCubeUVPacker(pmremGenerator.cubeLods);
+          pmremCubeUVPacker.update(renderer);
+
+          hdrCubeRenderTarget = pmremCubeUVPacker.CubeUVRenderTarget;
+
+          pmremGenerator.dispose();
+          pmremCubeUVPacker.dispose();
+
+          // scene.background = hdrCubeMap;
+
+          // model
+          var loader = new THREE.GLTFLoader().setPath('./models/M2/');
+          loader.load('scene.gltf', function (gltf) {
+
+            gltf.scene.traverse(function (child) {
+              components.push(child);
+
+              if (child.name === 'Plane') {
+                child.receiveShadow = true;
+              } else {
+                child.castShadow = true;
+              }
+
+              if (child.material) {
+                var material = child.material.clone();
+
+                if (child.name.startsWith('Sensor')) {
+                  material.side = THREE.DoubleSide;
+                  let colors = [0x808080, 0xffff00, 0xffa500, 0xff0000];
+                  material.color.setHex(colors[Math.floor(Math.random() * 4)]);
+
+                  sensors.push(child);
+                }
+                child.material = material;
+              }
+
+              if (child.isMesh) {
+                child.material.envMap = hdrCubeRenderTarget.texture;
+              }
+            });
+            scene.add(gltf.scene);
+
+
+            for (var i = 0; i < labels.length; i++) {
+              var o = labels[i];
+
+              var div = document.createElement('div');
+              div.className = 'label';
+              div.textContent = (o.id + 1).toString();
+              div.addEventListener('click', (function (i) {
+                return function () { go(i) };
+              })(i));
+              var label = new THREE.CSS2DObject(div);
+              var [x, y, z] = o.position;
+              label.position.set(x, y, z);
+              scene.add(label);
+            }
+          }, undefined, function (e) {
+            console.error(e);
+          });
+        });
+
+      window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function onDocumentMouseMove(event) {
+      // the following line would stop any other event handler from firing
+      // (such as the mouse's TrackballControls)
+      // event.preventDefault();
+
+      // update sprite position
+      // tooltip.sprite.position.set(event.clientX, event.clientY - 20, 0);
+
+      // update the mouse variable
+      let mouse = {
+        x: (event.clientX / window.innerWidth) * 2 - 1,
+        y: -(event.clientY / window.innerHeight) * 2 + 1
+      };
+
+      raycaster.setFromCamera(mouse, camera);
+      var intersects = raycaster.intersectObjects(components);
+
+      if (intersects.length > 0) {
+        console.log(Object.values(intersects[0].point));
+      }
+    }
+
+    function onWindowResize() {
+
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+    }
+
+    //
+
+    function animate() {
+      TWEEN.update();
+      requestAnimationFrame(animate);
+
+      if (renderer) {
+
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
+      }
+
+    }
+
+    setInterval(() => {
+      let colors = [0x808080, 0xffff00, 0xffa500, 0xff0000];
+      for (const sensor of sensors) {
+        sensor.material.color.setHex(colors[Math.floor(Math.random() * 4)]);
+      }
+    }, 2000);
+
+    function go(index) {
+
+      var from = camera.position;
+
+      var [x, y, z] = labels[index].camera;
+      var to = { x, y, z };
+      var tween = new TWEEN.Tween(from)
+        .to(to, 600)
+        .easing(TWEEN.Easing.Linear.None)
+        .onUpdate(function () {
+          camera.position.set(this.x, this.y, this.z);
+          camera.lookAt(new THREE.Vector3(0, 0, 0));
+        })
+        .onComplete(function () {
+          camera.lookAt(new THREE.Vector3(0, 0, 0));
+        })
+        .start();
+    }
+
+  </script>
+
+</body>
+
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>add demo</title>
+    <style>
+      body {
+        margin: 0px;
+        background-color: #000000;
+        color: #fff;
+        font-family: Monospace;
+        text-align: center;
+        font-size: 15px;
+        line-height: 30px;
+        overflow: hidden;
+      }
+
+      #info {
+        position: absolute;
+        top: 0px;
+        width: 100%;
+        padding: 15px;
+        z-index: 100;
+        box-sizing: border-box;
+      }
+
+      a {
+        color: white;
+      }
+    </style>
+    <script src="./js/three.js"></script>
+    <script src="./js/controls/OrbitControls.js"></script>
+    <script src="./js/controls/TransformControls.js"></script>
+    <script src="./js/loaders/GLTFLoader.js"></script>
+    <script src="./scripts/indicator.js"></script>
+  </head>
+
+  <body>
+    <div id="info">
+      <a href="javascript:pausing=true;">Pause</a> |
+      <a href="javascript:pausing=false;">Continue</a> |
+      <a href="javascript:speedUp();">Speed up</a> |
+      <a href="javascript:speedDown();">Speed down</a>
+    </div>
+    <script src="./scripts/fan.js"></script>
+  </body>
+</html>
